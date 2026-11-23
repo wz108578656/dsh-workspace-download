@@ -1,0 +1,6 @@
+# dsh-workspace-download bundle layer: a header button that downloads the
+# session workspace. The Host half does nothing; the browser module lists,
+# reads, and packs through workspaceFiles, then the browser saves the bytes.
+- insert:
+    - id: workspace-download
+      name: dsh-workspace-download

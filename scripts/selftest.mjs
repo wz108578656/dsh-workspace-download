@@ -36,6 +36,7 @@ for (const locale of ['en', 'zh']) {
 	const dict = JSON.parse(read(`../plugin/locale/${locale}.json`));
 	assert(dict.meta.title && dict.meta.description, `${locale} meta`);
 	assert(dict.title && dict.downloadSelected && dict.downloadAll, `${locale} core strings`);
+	assert(dict.downloadFile && dict.savedAsFile, `${locale} right-pane strings`);
 }
 
 const zh = JSON.parse(read('../plugin/locale/zh.json'));
@@ -70,6 +71,12 @@ assert(client.includes('const single = entries.length === 1'), 'single-file dire
 assert(client.includes('function flattenEntries'), 'flat archive entries');
 assert(client.includes('function archiveNameOf'), 'archive naming');
 assert(client.includes('function buildZip'), 'zip writer');
+// The right-pane header button saves the previewed file through the same read path.
+assert(client.includes("sidebar.right.tab.document.actions"), 'document action slot');
+assert(client.includes('async function downloadOne'), 'single-file download');
+assert(client.includes("id: 'workspace-download',"), 'slot cell id');
+// Names and sizes of skipped files come from these helpers, not from bare strings.
+assert(client.includes('function tooLargeError') && client.includes('function emptySelectionError'), 'failure builders');
 
 const host = read('../plugin/index.js');
 assert(host.includes('export function apply'), 'host half exports apply');

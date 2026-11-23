@@ -33,5 +33,6 @@
   "skippedTooLarge": "跳过了 {name}：{size}，超过单文件上限 {limit}。",
   "skippedTooLargeMore": "另有 {count} 个文件也因超过单文件上限被跳过。",
   "errorsMore": "另有 {count} 个条目读取失败。",
-  "savedAsFile": "文件名 {name}，{size}。"
+  "savedAsFile": "文件名 {name}，{size}。",
+  "downloadFile": "下载这个文件"
 }

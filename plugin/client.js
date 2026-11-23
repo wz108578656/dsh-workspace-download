@@ -62,6 +62,7 @@ window.__ModuleLoader__.load({
       errorsMore: '另有 {count} 个条目读取失败。',
       packFailed: '打包失败',
       tooLarge: '{name} 有 {size}，超过单文件上限 {limit}。',
+      downloadFile: '下载这个文件',
       emptySelection: '选中的项目里没有可以打包的文件。',
     };
     const en = {
@@ -95,6 +96,7 @@ window.__ModuleLoader__.load({
       errorsMore: 'Skipped {count} more entries that could not be read.',
       packFailed: 'Packing failed',
       tooLarge: '{name} is {size}, above the {limit} per-file limit.',
+      downloadFile: 'Download this file',
       emptySelection: 'Nothing in the selection could be packed.',
     };
 
@@ -304,6 +306,33 @@ window.__ModuleLoader__.load({
       anchor.click();
       setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
       return href;
+    }
+
+    function tooLargeError(file, size) {
+      const error = new Error('too large to download');
+      error.code = 'too-large';
+      error.file = file;
+      error.size = size;
+      return error;
+    }
+
+    function emptySelectionError() {
+      const error = new Error('nothing to download');
+      error.code = 'empty-selection';
+      return error;
+    }
+
+    /** Save one file straight to the browser: same read path, no archive around it. */
+    async function downloadOne(files, sessionId, absolutePath, signal) {
+      let stat = null;
+      try { stat = await callFile(files.stat, [sessionId, absolutePath, signal]); } catch (error) { stat = null; }
+      const name = safeFileName(baseName(absolutePath));
+      if (stat && typeof stat.bytes === 'number' && stat.bytes > MAX_FILE_BYTES) throw tooLargeError(name, stat.bytes);
+      const read = await readFileBytes(files, sessionId, absolutePath, signal);
+      if (!read.eof || read.data.length > MAX_FILE_BYTES) throw tooLargeError(name, read.data.length);
+      if (read.data.length === 0) throw emptySelectionError();
+      triggerBrowserSave(read.data, name, mimeOf(name));
+      return { name: name, bytes: read.data.length };
     }
 
     function minimizePaths(paths) {
@@ -521,16 +550,8 @@ window.__ModuleLoader__.load({
       if (signal.aborted) throw new Error('aborted');
       if (budget.files.length === 0) {
         if (budget.errors.length > 0) throw new Error(budget.errors[0]);
-        if (budget.tooLarge.length > 0) {
-          const error = new Error('too large to download');
-          error.code = 'too-large';
-          error.file = budget.tooLarge[0].file;
-          error.size = budget.tooLarge[0].size;
-          throw error;
-        }
-        const empty = new Error('nothing to download');
-        empty.code = 'empty-selection';
-        throw empty;
+        if (budget.tooLarge.length > 0) throw tooLargeError(budget.tooLarge[0].file, budget.tooLarge[0].size);
+        throw emptySelectionError();
       }
       const prefix = commonDirOf(budget.files);
       const entries = flattenEntries(budget.files, prefix);
@@ -554,7 +575,7 @@ window.__ModuleLoader__.load({
       };
     }
 
-    const STYLE_TEXT = ".wsdl-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:0;padding:0;border:0;border-radius:7px;background:transparent;color:var(--fg-muted,#8b8d93);cursor:pointer}\n.wsdl-button:hover{background:var(--bg-hover,rgba(127,127,127,.14));color:var(--fg,#e8e8e8)}\n.wsdl-button svg{width:16px;height:16px;display:block}\n.wsdl-backdrop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:24px}\n.wsdl-modal{display:flex;flex-direction:column;width:min(640px,100%);max-height:min(78vh,720px);overflow:hidden;border:1px solid var(--border,#34363c);border-radius:12px;background:var(--bg,#1c1e22);color:var(--fg,#e8e8e8);box-shadow:0 18px 60px rgba(0,0,0,.4)}\n.wsdl-head,.wsdl-row{display:flex;align-items:center;gap:8px}\n.wsdl-head{justify-content:space-between;padding:14px 16px 8px}\n.wsdl-title{font-size:15px;font-weight:650}\n.wsdl-close{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer}\n.wsdl-cwd,.wsdl-hint,.wsdl-note{padding:0 16px 8px;color:var(--fg-muted,#9aa0a6);font-size:12px;line-height:1.5}\n.wsdl-cwd{font-family:ui-monospace,monospace;word-break:break-all}\n.wsdl-heavy{display:flex;align-items:center;gap:8px;padding:0 16px 10px;font-size:13px}\n.wsdl-scroll{flex:1;min-height:0;overflow:auto;padding:0 8px 8px}\n.wsdl-section{margin:8px 8px 4px;color:var(--fg-muted,#9aa0a6);font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}\n.wsdl-row{min-height:30px;padding:2px 8px;border-radius:7px}\n.wsdl-row:hover{background:var(--bg-hover,rgba(127,127,127,.1))}\n.wsdl-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}\n.wsdl-meta{color:var(--fg-muted,#9aa0a6);font-size:11px}\n.wsdl-toggle{width:18px;border:0;background:transparent;color:inherit;cursor:pointer}\n.wsdl-children{padding-left:18px}\n.wsdl-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px 14px;border-top:1px solid var(--border,#34363c)}\n.wsdl-actions button,.wsdl-link{border:1px solid var(--border,#4a4d55);border-radius:8px;background:var(--bg-elevated,#2a2d33);color:inherit;padding:6px 10px;font-size:13px;cursor:pointer;text-decoration:none}\n.wsdl-actions button:disabled{opacity:.5;cursor:default}\n.wsdl-status{padding:0 16px 8px;font-size:12px}\n.wsdl-error{color:var(--danger,#e06c75)}";
+    const STYLE_TEXT = ".wsdl-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:0;padding:0;border:0;border-radius:7px;background:transparent;color:var(--fg-muted,#8b8d93);cursor:pointer}\n.wsdl-button:hover{background:var(--bg-hover,rgba(127,127,127,.14));color:var(--fg,#e8e8e8)}\n.wsdl-button svg{width:16px;height:16px;display:block}\n.wsdl-backdrop{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:24px}\n.wsdl-modal{display:flex;flex-direction:column;width:min(640px,100%);max-height:min(78vh,720px);overflow:hidden;border:1px solid var(--border,#34363c);border-radius:12px;background:var(--bg,#1c1e22);color:var(--fg,#e8e8e8);box-shadow:0 18px 60px rgba(0,0,0,.4)}\n.wsdl-head,.wsdl-row{display:flex;align-items:center;gap:8px}\n.wsdl-head{justify-content:space-between;padding:14px 16px 8px}\n.wsdl-title{font-size:15px;font-weight:650}\n.wsdl-close{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer}\n.wsdl-cwd,.wsdl-hint,.wsdl-note{padding:0 16px 8px;color:var(--fg-muted,#9aa0a6);font-size:12px;line-height:1.5}\n.wsdl-cwd{font-family:ui-monospace,monospace;word-break:break-all}\n.wsdl-heavy{display:flex;align-items:center;gap:8px;padding:0 16px 10px;font-size:13px}\n.wsdl-scroll{flex:1;min-height:0;overflow:auto;padding:0 8px 8px}\n.wsdl-section{margin:8px 8px 4px;color:var(--fg-muted,#9aa0a6);font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}\n.wsdl-row{min-height:30px;padding:2px 8px;border-radius:7px}\n.wsdl-row:hover{background:var(--bg-hover,rgba(127,127,127,.1))}\n.wsdl-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}\n.wsdl-meta{color:var(--fg-muted,#9aa0a6);font-size:11px}\n.wsdl-toggle{width:18px;border:0;background:transparent;color:inherit;cursor:pointer}\n.wsdl-children{padding-left:18px}\n.wsdl-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px 14px;border-top:1px solid var(--border,#34363c)}\n.wsdl-actions button,.wsdl-link{border:1px solid var(--border,#4a4d55);border-radius:8px;background:var(--bg-elevated,#2a2d33);color:inherit;padding:6px 10px;font-size:13px;cursor:pointer;text-decoration:none}\n.wsdl-actions button:disabled{opacity:.5;cursor:default}\n.wsdl-status{padding:0 16px 8px;font-size:12px}\n.wsdl-error{color:var(--danger,#e06c75)}\n.wsdl-doc-action{display:inline-flex;align-items:center;gap:6px;min-width:0}\n.wsdl-doc-note{color:var(--fg-muted,#9aa0a6);font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}";
 
     function DownloadIcon() {
       return h('svg', { viewBox: '0 0 16 16', 'aria-hidden': true },
@@ -576,6 +597,44 @@ window.__ModuleLoader__.load({
           onClick: function () { props.store.set({ open: !snap.open }); },
         }, h(DownloadIcon)),
         snap.open ? h(Dialog, props) : null);
+    }
+
+    /** Right-pane header button: save the file the preview is showing. */
+    function DocumentDownloadAction(props) {
+      const t = props.t;
+      const [busy, setBusy] = React.useState(false);
+      const [note, setNote] = React.useState('');
+      React.useEffect(function () {
+        if (!note) return undefined;
+        const timer = setTimeout(function () { setNote(''); }, 6000);
+        return function () { clearTimeout(timer); };
+      }, [note]);
+      const path = props.absolutePath;
+      const sessionId = props.sessionId;
+      if (!path || !sessionId) return null;
+      function run() {
+        if (busy) return;
+        setBusy(true);
+        setNote('');
+        downloadOne(props.files, sessionId, path).then(function (saved) {
+          setBusy(false);
+          setNote(fill(t('savedAsFile'), { name: saved.name, size: formatSize(saved.bytes) }));
+        }, function (error) {
+          setBusy(false);
+          if (error && error.code === 'too-large') setNote(fill(t('tooLarge'), { name: error.file, size: formatSize(error.size), limit: formatSize(MAX_FILE_BYTES) }));
+          else setNote(messageOf(error));
+        });
+      }
+      return h('span', { className: 'wsdl-doc-action' },
+        h('button', {
+          type: 'button',
+          className: 'wsdl-button',
+          title: t('downloadFile'),
+          'aria-label': t('downloadFile'),
+          disabled: busy,
+          onClick: run,
+        }, h(DownloadIcon)),
+        note ? h('span', { className: 'wsdl-doc-note', title: note }, note) : null);
     }
 
     function EntryRow(props) {
@@ -772,6 +831,26 @@ window.__ModuleLoader__.load({
         const files = ctx.remote.workspaceFiles;
 
         const slots = ctx.slots;
+        // The document preview already resolved the file's Host path; this button
+        // saves that exact file, so a previewed PDF needs no trip through the dialog.
+        ctx.effect(function () {
+          return slots.inject('sidebar.right.tab.document.actions', function () {
+            return slots.register({
+              name: 'sidebar.right.tab.document.actions',
+              id: 'workspace-download',
+              order: 20,
+              locale: NS,
+            }, function (props) {
+              return h(DocumentDownloadAction, {
+                t: props.t || translate,
+                absolutePath: props.absolutePath,
+                sessionId: props.sessionId,
+                files: files,
+              });
+            });
+          });
+        });
+
         ctx.effect(function () {
           return slots.inject('conversation.session.header.utilities', function () {
             return slots.register({

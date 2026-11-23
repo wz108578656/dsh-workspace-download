@@ -33,5 +33,6 @@
   "skippedTooLarge": "Skipped {name}: {size}, above the {limit} per-file limit.",
   "skippedTooLargeMore": "Skipped {count} more files that were above the per-file limit.",
   "errorsMore": "Skipped {count} more entries that could not be read.",
-  "savedAsFile": "{name}, {size}."
+  "savedAsFile": "{name}, {size}.",
+  "downloadFile": "Download this file"
 }
